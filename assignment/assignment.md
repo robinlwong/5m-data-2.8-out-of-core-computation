@@ -16,25 +16,21 @@ Answer:
 
 ```python
 import polars as pl
-
-# If data !loaded into mem use `pl.scan_csv("movies_metadata.csv")` 
-# instead of `pl.read_csv()` so the data never fully loads into RAM at all.
-
-# 1. Lazy Query Plan.
+"""
+If data !loaded into mem use `pl.scan_csv("movies_metadata.csv")` 
+instead of `pl.read_csv()` so the data never fully loads into RAM at all.
+1. Lazy Query Plan.
+"""
 joined_lazy = (
     metadata_pl.lazy()      # Convert to LazyFrame.
-"""
-Convert to Int64, take the "id" column which was text/strings
-and casts it to 64-bit integers to match the data tye in ratings_pl
-strict=false prevents a crash if !number, return null.
-"""
+# Convert to Int64, take the "id" column which was text/strings
+# and casts it to 64-bit integers to match the data tye in ratings_pl
+# strict=false prevents a crash if !number, return null.
     .with_columns(pl.col("id").cast(pl.Int64, strict=False))
     .drop_nulls(subset=["id"])  # Drop nulls because you can't join on null ID
-"""
-Ensure unique "id" to prevent memory explosion as duplicate movie IDs
-would multiply against millions of rating rows which would result in an
-an explosion of many-to-many joins which would freeze the server.
-"""
+# Ensure unique "id" to prevent memory explosion as duplicate movie IDs
+# would multiply against millions of rating rows which would result in an
+# an explosion of many-to-many joins which would freeze the server.
     .unique(subset=["id"])
     .join(
         ratings_pl.lazy(),  # Convert to LazyFrame
@@ -49,18 +45,16 @@ an explosion of many-to-many joins which would freeze the server.
 avg_rating_by_genre = (
     joined_lazy
     .group_by("genre")
-# Look at "rating" column, calculate mean, and rename new output column
-# "avg_rating" so it looks clean.
     .agg(pl.col("rating").mean().alias("avg_rating"))
-    .collect()    # Execute on CPU/GPU optimized plan.
+    .collect()    # Execute optimized plan on CPU.
 )
+
 
 # 3. Calculate avg_rating by original_language, use joined_lazy from 1.
 avg_rating_by_language = (
     joined_lazy
     .group_by("original_language")
     .agg(pl.col("rating").mean().alias("avg_rating"))
-# Again collect() pulls the trigger and executes this specific pipeline.
     .collect()
 )
 
@@ -79,14 +73,16 @@ Answer:
 ```python
 import polars as pl
 
-# 1. Lazy query plan.
-# Read data in chunks, automatically convert text dates 
-# into datetime objects just in case math needs to be done.
+"""
+1. Lazy query plan.
+Read data in chunks, automatically convert text dates 
+into datetime objects just in case math needs to be done.
+"""
 q = (
     pl.scan_csv('data/taxi_trip_data.csv', try_parse_dates=True)
-    # alculate metrics for each specific vendor, 
-    # so we tell Polars to organize all the millions of rows into distinct 
-    # buckets based on the unique 'vendor_id'.
+# Calculate metrics for each specific vendor, 
+# tells Polars to organize all the millions of rows into distinct 
+# buckets based on the unique 'vendor_id'.
     .group_by("vendor_id")
     .agg(
         pl.mean("total_amount").alias("avg_total_amount"),
