@@ -73,9 +73,22 @@ Question: Calculate the average total amount for vendors with at least 5 trips f
 Answer:
 
 ```python
+import polars as pl
 
+# 1. Lazy query plan.
+q = (
+    pl.scan_csv('data/taxi_trip_data.csv', try_parse_dates=True)
+    .group_by("vendor_id")
+    .agg(
+        pl.mean("total_amount").alias("avg_total_amount"),
+        pl.len().alias("trip_count")
+    )
+    .filter(pl.col("trip_count") >= 5)
+)
 
-
+# Execute.
+df_pl = q.collect()
+print(df_pl)
 ```
 
 ## Submission
